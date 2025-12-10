@@ -1,5 +1,10 @@
 using LinearAlgebra
 
+const EVEN1 = (; type="even", index=1, z_mu_guess=Complex{BigFloat}(BigFloat("0.473785763924114535111724293851737e5"), 0.0)   )
+const ODD1  = (; type="odd",  index=1, z_mu_guess=Complex{BigFloat}(BigFloat("0.473546725588372858352299169480810e5"), 0.0)   )
+const EVEN2 = (; type="even", index=2, z_mu_guess=Complex{BigFloat}(BigFloat("0.473251454095354947292257785388791225e5"), 0.0)) 
+
+
 function get_factors(num_terms, r0::BigFloat, a::BigFloat)
     n_factors = num_terms - 2
     factors0 = ones(BigFloat, n_factors)
@@ -185,19 +190,20 @@ function BC_left(z_mu, zC, zD, w_num_core, w_num_clad, r0, a, b, tol_bessel, num
 end
 
 # Evaluation of solutions and all derivatives at the right boundary
-function BC_right(bctype,z_mu, zC, zD, w_num_core, w_num_clad, r0, a, b, tol_bessel, num_terms, factors0, factorsR; print_flag=false::Bool)
+function BC_right(BC, z_mu, zC, zD, w_num_core, w_num_clad, r0, a, b, tol_bessel, num_terms, factors0, factorsR; print_flag=false::Bool)
 
-    # println()
     compute_bessel_deriv = true
     zCR, zDR, zCR_mu, zDR_mu, zCR_C, zDR_C, zCR_D, zDR_D = get_C_D_right(z_mu, zC, zD, w_num_core, r0, a, 
         compute_bessel_deriv, tol_bessel, num_terms, factors0, print_flag=print_flag) 
 
     # Evaluate the cladding solution at the left boundary
-    if bctype == "imp"
-        zr       = r0 + b
-    elseif bctype == "pml"
-        PML_const = BigFloat(800)
-        zr       = r0 + b - PML_const / w_num_clad * im 
+    if BC.type == "imp"
+        zr = r0 + b
+    elseif BC.type == "pml"
+        PML_const = BC.param 
+        zr = r0 + b - PML_const / w_num_clad * im 
+    else
+        throw(ErrorException("BC_right: invalid BC specified. Valid options are \"pml\" and \"imp\""))
     end
     
     w_num    = w_num_clad 
@@ -244,7 +250,7 @@ function check_rel_convergence(a1, a2, denom, rel_tol)
     end
 end
 
-function find_even_mode(bctype::String,
+function find_even_mode(BC::NamedTuple,
                         z_mu_guess::Complex{BigFloat}, 
                         zD_guess::Complex{BigFloat}, 
                         w_num_core::BigFloat, 
@@ -285,15 +291,15 @@ function find_even_mode(bctype::String,
         Jac[1,:] = [dval_mu dval_D]
 
         # Evaluate right boundary
-        val, dval, val_mu, dval_mu, _, _, val_D, dval_D = BC_right(bctype,z_mu, zC, zD, w_num_core, w_num_clad, r0, a, b, 
+        val, dval, val_mu, dval_mu, _, _, val_D, dval_D = BC_right(BC,z_mu, zC, zD, w_num_core, w_num_clad, r0, a, b, 
                                                                    tol_bessel, num_terms, factors0, factorsR, print_flag=print_flag)
+        
         # Save value of the second BC and derivatives wrt mu and the unknown coef 
-        if bctype == "imp"
-            F[2] = (r0+a)/(r0+b)*dval + 1im*w_num_clad*val
-            Jac[2,1] = (r0+a)/(r0+b)*dval_mu + 1im*w_num_clad*val_mu
-            Jac[2,2] = (r0+a)/(r0+b)*dval_D + 1im*w_num_clad*val_D
-        elseif bctype == "pml"
-            # RESTART: Jac[2,1] is off between the two, and it corresponds to val_mu from BC_right
+        if BC.type == "imp"
+            F[2]     = (r0+a)/(r0+b)*dval    + 1im*w_num_clad*val     
+            Jac[2,1] = (r0+a)/(r0+b)*dval_mu + 1im*w_num_clad*val_mu 
+            Jac[2,2] = (r0+a)/(r0+b)*dval_D  + 1im*w_num_clad*val_D
+        elseif BC.type == "pml"
             F[2] = val 
             Jac[2,:] = [val_mu val_D]
         end
@@ -308,23 +314,8 @@ function find_even_mode(bctype::String,
         sol = sol + delta_sol
 
         if print_flag
-            println("find_even_mode: itr=$itr")
-            println("    F[1]     = $(F[1])")
-            println("    F[2]     = $(F[2])\n")
-            println("    delta mu = $(delta_sol[1])")
-            println("    delta_D  = $(delta_sol[2])\n")
-            println("    mu       = $(sol[1])")
-            println("    D        = $(sol[2])\n")
-
-            println("  Jac:")
-            println("    [1,1] = $(Jac[1,1])")
-            println("    [1,2] = $(Jac[1,2])")
-            println("    [2,1] = $(Jac[2,1])")
-            println("    [2,2] = $(Jac[2,2])")
-
+            println("find_even_mode: nonlinear itr=$itr, relative_delta=$(norm(delta_sol)/ref_norm)")
         end
-
-        println("find_even_mode: nonlinear itr=$itr, relative_delta=$(norm(delta_sol)/ref_norm)")
 
         if norm(delta_sol) / ref_norm < tol_eigen
             success = true
@@ -338,7 +329,7 @@ function find_even_mode(bctype::String,
     return z_mu_final, zD_final, success
 end
 
-function find_odd_mode(bctype::String,
+function find_odd_mode(BC::NamedTuple,
                        z_mu_guess::Complex{BigFloat}, 
                        zC_guess::Complex{BigFloat}, 
                        w_num_core::BigFloat, 
@@ -378,15 +369,15 @@ function find_odd_mode(bctype::String,
         Jac[1,:] = [dval_mu dval_C]
 
         # Evaluate right boundary
-        val, dval, val_mu, dval_mu, val_C, dval_C, _, _ = BC_right(bctype,z_mu, zC, zD, w_num_core, w_num_clad, r0, a, b, 
+        val, dval, val_mu, dval_mu, val_C, dval_C, _, _ = BC_right(BC,z_mu, zC, zD, w_num_core, w_num_clad, r0, a, b, 
                                                                    tol_bessel, num_terms, factors0, factorsR, print_flag=print_flag)
 
         # Save value of the second BC and derivatives wrt mu and the unknown coef 
-        if bctype == "imp"
-            F[2] = (r0+a)/(r0+b)*dval + 1im*w_num_clad*val
+        if BC.type == "imp"
+            F[2]     = (r0+a)/(r0+b)*dval    + 1im*w_num_clad*val 
             Jac[2,1] = (r0+a)/(r0+b)*dval_mu + 1im*w_num_clad*val_mu
-            Jac[2,2] = (r0+a)/(r0+b)*dval_C + 1im*w_num_clad*val_C
-        elseif bctype == "pml"
+            Jac[2,2] = (r0+a)/(r0+b)*dval_C  + 1im*w_num_clad*val_C
+        elseif BC.type == "pml"
             F[2] = val 
             Jac[2,:] = [val_mu val_C]
         end
@@ -402,24 +393,8 @@ function find_odd_mode(bctype::String,
         sol = sol + delta_sol
 
         if print_flag
-            println("find_odd_mode: itr=$itr")
-            println("    F[1]     = $(F[1])")
-            println("    F[2]     = $(F[2])\n")
-            println("    delta mu = $(delta_sol[1])")
-            println("    delta_C  = $(delta_sol[2])\n")
-            println("    mu       = $(sol[1])")
-            println("    C        = $(sol[2])\n")
-            println("\n\n")
-
-            println("  Jac:")
-            println("    [1,1] = $(Jac[1,1])")
-            println("    [1,2] = $(Jac[1,2])")
-            println("    [2,1] = $(Jac[2,1])")
-            println("    [2,2] = $(Jac[2,2])")
+            println("find_odd_mode: nonlinear itr=$itr, relative_delta=$(norm(delta_sol)/ref_norm)")
         end
-
-
-        println("find_odd_mode: nonlinear itr=$itr, relative_delta=$(norm(delta_sol)/ref_norm)")
 
         if norm(delta_sol) / ref_norm < tol_eigen
             success = true
@@ -535,35 +510,103 @@ function get_C_D_right(z_mu, zC, zD, w_num_core, r0, a, compute_deriv, tol_besse
 end
 
 
-function BentThreeLayerWaveguide(zr, z_mu, zC, zD, zCL, zDL, zCR, zDR, w_num_core, w_num_clad, 
-        r0, a, b, tol_bessel, num_terms, factors0, factorsL, factorsR; print_flag=false::Bool )
-    
+function solve_bent_waveguide(
+          mode::NamedTuple,
+             a::BigFloat,
+             b::BigFloat,
+            r0::BigFloat,
+    wavelength::BigFloat,
+    w_num_core::BigFloat,
+    w_num_clad::BigFloat;
+            BC = (; type="imp", param=w_num_clad), # Valid values for "type" are "pml" and "imp"
+    tol_bessel = 1000 * eps(BigFloat),
+     tol_eigen = 10 * tol_bessel,
+       max_itr = 100::Integer,
+     num_terms = ceil(Integer, -20 * log10(eps(BigFloat)))::Integer,
+    print_flag = false::Bool )
+
+    # Precompute factors
+    if print_flag
+        println("Precomputing array of factors for bessel_frobenius routine...\n")
+    end
+    factors0, factorsL, factorsR = get_factors(num_terms, r0, a)
+
+    # Set starting C/D values in the core
+    if mode.type == "even"
+        zC_final = Complex{BigFloat}(1.0, 0.0)
+        zD_guess = Complex{BigFloat}(0.0, 0.0)
+
+        z_mu_final, zD_final, success = find_even_mode(BC, mode.z_mu_guess, zD_guess, w_num_core, w_num_clad, r0, a, b, 
+                tol_bessel, num_terms, factors0, factorsL, factorsR, max_itr, tol_eigen, print_flag=print_flag)
+    elseif mode.type == "odd"
+        zC_guess = Complex{BigFloat}(0.0, 0.0)
+        zD_final = Complex{BigFloat}(1.0, 0.0)
+
+        z_mu_final, zC_final, success = find_odd_mode(BC, mode.z_mu_guess, zC_guess, w_num_core, w_num_clad, r0, a, b, 
+                tol_bessel, num_terms, factors0, factorsL, factorsR, max_itr, tol_eigen, print_flag=print_flag)
+    else
+        throw(ErrorException("solve_bent_waveguide: invalid mode option \"$mode\". Valid options are \"even\" and \"odd\"."))
+    end
+
+    if print_flag && success
+        println("CONVERGED SOLUTION: " * mode," -------- BC = " * BC.type * "(param=$(BC.param))"," -------- r0 = $r0")
+        println("    z_mu_final = $z_mu_final")
+        println("    lambda_fnl = $(z_mu_final*r0^2)")
+        println("    beta_final = $(r0*sqrt(z_mu_final))")
+        println("    beta_fnl/r0= $(sqrt(z_mu_final))")
+        println("    zC_final   = $zC_final")
+        println("    zD_final   = $zD_final")
+        println("    loss_final = $(-imag(r0*sqrt(z_mu_final)))")
+    elseif print_flag
+        println("Failed to converge. Returning last computed values.")
+    end
+
+    # Get the solutions in the left and right cladding
+    compute_deriv = false
+    zCL, zDL, _, _, _, _, _, _ = get_C_D_left(z_mu_final, zC_final, zD_final, w_num_core, r0, a, 
+                                                compute_deriv, tol_bessel, num_terms, factors0, print_flag=print_flag)
+
+    zCR, zDR, _, _, _, _, _, _ = get_C_D_right(z_mu_final, zC_final, zD_final, w_num_core, r0, a, 
+                                                compute_deriv, tol_bessel, num_terms, factors0, print_flag=print_flag)
+
+    zC = (; L=zCL, core=zC_final, R=zCR)
+    zD = (; L=zDL, core=zD_final, R=zDR)
+    params = (; a, b, r0, w_num_core, w_num_clad, wavelength, BC, tol_bessel, tol_eigen, max_itr, 
+                num_terms, factors0, factorsL, factorsR)
+
+    return z_mu_final, zC, zD, success, params
+end
+
+# For evaluating the solution to the 
+function eval_waveguide_solution(zr, z_mu, zC, zD, params; print_flag=false::Bool )
     compute_deriv = false
 
-    if real(zr) < r0 - b || real(zr) > r0 + b
-        @warn "BentThreeLayerWaveguide: Point is out of interval [r0 - b, r0 + b]. Returning."
+    if real(zr) < params.r0 - params.b || real(zr) > params.r0 + params.b
+        @warn "evaluate_waveguide_solution: Point is out of interval [r0 - b, r0 + b]. Returning."
         return
     end
 
-    if real(zr) < r0 - a # In the left cladding
-        r_base = r0 - a 
-        w_num = w_num_clad 
-        z_mu_loc = z_mu * r0^2 / (r_base^2)
-        factors = factorsL
-        zC = zCL
-        zD = zDL
-    elseif real(zr) <= r0 + a # In the core
-        r_base = r0 
-        w_num = w_num_core 
+    if real(zr) < params.r0 - params.a # In the left cladding
+        r_base = params.r0 - params.a 
+        w_num = params.w_num_clad 
+        z_mu_loc = z_mu * params.r0^2 / (r_base^2)
+        factors = params.factorsL
+        zC = zC.L
+        zD = zD.L
+    elseif real(zr) <= params.r0 + params.a # In the core
+        r_base = params.r0 
+        w_num = params.w_num_core 
         z_mu_loc = z_mu
-        factors = factors0
+        factors = params.factors0
+        zC = zC.core
+        zD = zD.core
     else # In the right cladding
-        r_base = r0 + a 
-        w_num = w_num_clad
-        z_mu_loc = z_mu * r0^2 / (r_base^2)
-        factors = factorsR
-        zC = zCR 
-        zD = zDR
+        r_base = params.r0 + params.a 
+        w_num = params.w_num_clad
+        z_mu_loc = z_mu * params.r0^2 / (r_base^2)
+        factors = params.factorsR
+        zC = zC.R
+        zD = zD.R
     end
 
     # Solution 10
@@ -571,14 +614,14 @@ function BentThreeLayerWaveguide(zr, z_mu, zC, zD, zCL, zDL, zCR, zDR, w_num_cor
     zc1 = Complex{BigFloat}(0.0, 0.0)
 
     f10, df10, _, _ = bessel_frobenius(zr, z_mu_loc, w_num, r_base, zc0, zc1, compute_deriv, 
-                                        tol_bessel, num_terms, factors, print_flag=print_flag)
+                                        params.tol_bessel, params.num_terms, factors, print_flag=print_flag)
 
     # Solution 10
     zc0 = Complex{BigFloat}(0.0, 0.0)
     zc1 = Complex{BigFloat}(1.0, 0.0)
 
     f01, df01, _, _ = bessel_frobenius(zr, z_mu_loc, w_num, r_base, zc0, zc1, compute_deriv, 
-                                        tol_bessel, num_terms, factors, print_flag=print_flag)
+                                        params.tol_bessel, params.num_terms, factors, print_flag=print_flag)
 
     u = zC * f10 + zD * f01
     du = (zC * df10 + zD * df01) * r_base / zr
