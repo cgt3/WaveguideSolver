@@ -38,13 +38,13 @@ function rfact(N, r0)
 end
 
 # Params: ----------------------------------------------------------------------------------------
-#        zr - the desired radius to evaluate the Bessel function at
-#       z_mu - 
+#         zr - the desired radius to evaluate the Bessel function at
+#       z_mu - the possibly complex order of the Bessel function
 #      w_num - wave number
 #     r_base - the radius about which to expand
-#       zc0 - base case for coefficent c0 
-#       zc1 - base case for coefficent c1 
-# compute_du - whether to compute du or not (idec in MatLab code)
+#        zc0 - base case for coefficent c0 
+#        zc1 - base case for coefficent c1 
+# compute_du - whether to compute du or not
 #        tol - the tolerance for the expansion
 #    factors - precomputed terms
 # ------------------------------------------------------------------------------------------------
