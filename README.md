@@ -1,8 +1,8 @@
 # Arbitrary Precision Bessel Function and Waveguide Solvers
 
 In this repository we provide:
- 1) `bessel_frobenius`: A generalized Bessel function implementation for evaluating a Bessel function, `J_mu(x)` of arbitrary complex order `mu` at (possibly complex) point `x` at arbitrary precision and
- 2) Non-linear solvers for computing the first three modes of the Bessel eigenvalue problem arising in the study of loss factors in three-layer optical slab waveguides. 
+ 1) `bessel_frobenius`: A generalized Bessel function implementation for evaluating a Bessel function (i.e. a solution to the Bessel differential equation with initial value `zc0` and initial derivative `zc1` at point `r0`) of arbitrary complex order `sqrt(mu)` at (possibly complex) point `x` at arbitrary precision and
+ 2) Non-linear solvers for computing the first three propagating modes of the Bessel eigenvalue problem arising in the study of loss factors in three-layer optical slab waveguides subject to bending. 
  
  These solvers were used to produce the results in the paper, "Bessel Functions and Analysis of Circular Waveguides" by J Mora-Paz, L. Demkowicz, C.G. Taylor, J. Grosek, and S. Henneking, a preprint of which is currently available on ArXiv at: [https://arxiv.org/abs/2512.04348](https://arxiv.org/abs/2512.04348).
 
@@ -16,7 +16,7 @@ Within these codes we make use of Julia's `BigFloat` arbitrary precision data ty
 The use of ```BigFloat``` is a necessity for these computations for three reasons: 
  1) the exponentially/factorially fast decay of the coefficients used in the Frobenius expansion in ```bessel_frobenius```, 
  2) the discrepancy in the magnitudes of the real and imaginary components (around 30 orders of magnitude difference in some cases), and 
- 3) the extreme sensistivity of the imaginary component of the modes.
+ 3) the extreme sensitivity of the imaginary component of the modes.
 
 The precision needed depends on the magnitude of the input to `bessel_frobenius`. Within the given example codes we use a precision of 70 base-10 digits, but more digits may be necessary for other parameter values.
 
@@ -31,10 +31,10 @@ setprecision(113, base=2) # Quadruple precision, approx 33 base-10 digits of acc
 ```
 
 ### Reproducing Paper Results
-The files [Table5.jl](https://github.com/cgt3/WaveguideSolver/blob/main/Table5.jl), [Table6-Figure4.jl](https://github.com/cgt3/WaveguideSolver/blob/main/Table6-Figure4.jl), [Table7-Figure6.jl](https://github.com/cgt3/WaveguideSolver/blob/main/Table7-Figure6.jl), and [Table8-Figure7.jl](https://github.com/cgt3/WaveguideSolver/blob/main/Table8-Figure7.jl) will produce the results shown in the denoted entity in the paper. Note that for the figures, the images in the paper where produced in MatLab but are equivalent.
+The files [Table5.jl](https://github.com/cgt3/WaveguideSolver/blob/main/Table5.jl), [Table6-Figure4.jl](https://github.com/cgt3/WaveguideSolver/blob/main/Table6-Figure4.jl), [Table7-Figure6.jl](https://github.com/cgt3/WaveguideSolver/blob/main/Table7-Figure6.jl), and [Table8-Figure7.jl](https://github.com/cgt3/WaveguideSolver/blob/main/Table8-Figure7.jl) will produce the results shown in the denoted entity in the paper. Note that for the figures, the images in the paper were produced in MatLab but are equivalent.
 
 ### Testing Other Setups
-The file [driver_solver.jl](https://github.com/cgt3/WaveguideSolver/blob/main/driver_solver.jl) is can be used to test other choices of parameters, precision, and modes. A guide to the problem parameters is given below.
+The file [driver_solver.jl](https://github.com/cgt3/WaveguideSolver/blob/main/driver_solver.jl) can be used to test other choices of parameters, precision, and modes. A guide to the problem parameters is given below.
 
 ## Parameters
 As discussed in the accompanying paper, the following problem parameters appear in the code.
@@ -43,13 +43,13 @@ As discussed in the accompanying paper, the following problem parameters appear 
 - `r0` the radius of curvature of the bent waveguide
 - `a` the distance from the fiber's centerline to the edge of the core
 - `b` the distance from the fiber's centerline to the edge of the cladding
-- `ref_length` the length scale for the problem of interest (proportional to the distance traveled by light in the fiber for the chosen time scale).
+- `ref_length` the length scale for the problem of interest (which matches the diameter of the waveguide core).
 
 ### Material Parameters:
-- `k0` the freespace wavelumber
+- `k0` the freespace wavelumber (in non-dimensional units)
 - `n_core` the core's refractive index (n_0 in the paper)
 - `n_clad` the cladding's refractive index (n_1 in the paper)
-- `wavelength` the wavelength of light being studied
+- `wavelength` the wavelength of light being studied (in non-dimensional units)
 
 ### Boundary Conditions:
 `BC = (;type, param)` sets the type of BC to use and any parameters needed for its enforcement (e.g., the PML constant). 
